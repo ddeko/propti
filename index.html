@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="theme-color" content="#1d3856" />
+<title>Propti — CRM & Gamifikasi Penjualan untuk Agen Properti</title>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/htm@3.1.1/dist/htm.umd.js"></script>
+
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          sans: ['Inter','ui-sans-serif','system-ui','sans-serif'],
+          display: ['Sora','Inter','sans-serif']
+        },
+        colors: {
+          // deep navy "ink" — trustworthy proptech primary
+          brand: {50:'#eef3f8',100:'#d7e3ee',200:'#aec6dd',300:'#7da3c5',400:'#4d7ba6',500:'#2f5e8a',600:'#244c72',700:'#1f3f5f',800:'#1d3856',900:'#162a40'},
+          // warm amber accent — energy / points / XP
+          gold:  {50:'#fdf6ec',100:'#f9e8cb',200:'#f1cd8e',300:'#e8b057',400:'#e0892a',500:'#c9731b',600:'#a85a14',700:'#854614',900:'#5a3010'},
+          paper: '#f4f2ec'
+        },
+        boxShadow: {
+          card: '0 1px 2px rgba(22,42,64,.06), 0 1px 3px rgba(22,42,64,.04)',
+          lift: '0 8px 28px -10px rgba(22,42,64,.22)'
+        }
+      }
+    }
+  }
+</script>
+<style>
+  html,body,#root{height:100%}
+  body{background:#f4f2ec;color:#1f2937}
+  *{ -webkit-tap-highlight-color: transparent }
+  ::-webkit-scrollbar{width:9px;height:9px}
+  ::-webkit-scrollbar-thumb{background:#d9d4c8;border-radius:9px}
+  .font-display{font-family:Sora,Inter,sans-serif}
+  @keyframes pop {0%{transform:scale(.92);opacity:0}60%{transform:scale(1.02)}100%{transform:scale(1);opacity:1}}
+  .anim-pop{animation:pop .24s cubic-bezier(.22,1,.36,1)}
+  @keyframes slideUp{from{transform:translateY(10px);opacity:0}to{transform:translateY(0);opacity:1}}
+  .anim-up{animation:slideUp .3s cubic-bezier(.22,1,.36,1) both}
+  @keyframes fall{to{transform:translateY(110vh) rotate(680deg);opacity:0}}
+  .confetti{position:fixed;top:-20px;font-size:18px;animation:fall linear forwards;z-index:9999;pointer-events:none}
+  .bar-fill{transition:width .7s cubic-bezier(.22,1,.36,1)}
+  .card{background:#fff;border:1px solid #e9e4d8;border-radius:14px}
+  .no-scrollbar::-webkit-scrollbar{display:none}
+  .no-scrollbar{-ms-overflow-style:none;scrollbar-width:none}
+  .hero{background:radial-gradient(120% 120% at 88% -30%, rgba(224,137,42,.40), transparent 46%), linear-gradient(180deg,#22455f,#1d3856)}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="module">
+const { useState, useEffect, useMemo, useRef, useCallback, createContext, useContext, Fragment } = React;
+const html = htm.bind(React.createElement);
+const cls = (...a)=>a.filter(Boolean).join(' ');
+const uid = ()=>Math.random().toString(36).slice(2,10);
+const now = ()=>Date.now();
+const ACCENT='#e0892a', ACCENT_DK='#a85a14', NAVY='#1d3856', NAVY6='#244c72';
+
+/* ---------- currency (IDR) ---------- */
+const fmtMoney = n => 'Rp ' + Number(n||0).toLocaleString('id-ID');
+function fmtK(n){ n=Number(n||0);
+  if(n>=1e9) return 'Rp '+(n/1e9).toFixed(n%1e9?1:0).replace('.',',')+' M';
+  if(n>=1e6) return 'Rp '+Math.round(n/1e6)+' jt';
+  return 'Rp '+n.toLocaleString('id-ID'); }
+
+/* ---------- time ---------- */
+const dayKey=(ts=now())=>new Date(ts).toISOString().slice(0,10);
+
+/* ============ i18n ============ */
+const I18N = {
+  en:{
+    'brand.tag':'Property Sales CRM','common.cancel':'Cancel','common.done':'Done','common.delete':'Delete',
+    'common.viewAll':'View all →','common.all':'All','common.pts':'pts','common.with':'with',
+    'nav.dashboard':'Dashboard','nav.leads':'Leads','nav.pipeline':'Pipeline','nav.properties':'Listings',
+    'nav.activities':'Activity','nav.quests':'Quests','nav.leaderboard':'Leaders','nav.achievements':'Badges',
+    'nav.rewards':'Rewards','nav.profile':'Profile','nav.more':'More','nav.home':'Home',
+    'stage.new':'New Lead','stage.contacted':'Contacted','stage.qualified':'Qualified','stage.viewing':'Viewing',
+    'stage.negotiation':'Negotiation','stage.won':'Closed Won','stage.lost':'Lost',
+    'act.call.label':'Call','act.email.label':'Email','act.meeting.label':'Meeting','act.viewing.label':'Viewing',
+    'act.note.label':'Note','act.deal.label':'Deal Won',
+    'act.withLead':'{label} with {name}','act.closedWith':'Closed deal with {name} 🎉',
+    'tier.Bronze':'Bronze','tier.Silver':'Silver','tier.Gold':'Gold','tier.Platinum':'Platinum','tier.Diamond':'Diamond',
+    'source.Website':'Website','source.Referral':'Referral','source.Walk-in':'Walk-in','source.Instagram':'Instagram',
+    'source.Rumah123':'Rumah123','source.Cold Call':'Cold Call','source.Other':'Other',
+    'quest.q-d1':'Make 5 calls','quest.q-d2':'Log 3 activities','quest.q-d3':'Add a new lead',
+    'quest.q-w1':'Schedule 4 viewings','quest.q-w2':'Close 1 deal','quest.q-w3':'Add 8 new leads',
+    'quest.q-m1':'Close 5 deals','quest.q-m2':'Complete 60 activities',
+    'quests.daily':'Daily Quests','quests.weekly':'Weekly Quests','quests.monthly':'Monthly Quests',
+    'quests.dailySub':'Resets every day','quests.weeklySub':'Bigger rewards','quests.monthlySub':'Elite challenges',
+    'quests.intro':'Complete quests by logging real CRM activity — rewards apply automatically. 🎉',
+    'quests.resetDailies':'Reset dailies','quests.progress':'Progress','quests.completed':'Completed','quests.doneOf':'{n}/{total} done',
+    'achv.a1.title':'First Contact','achv.a1.desc':'Log your very first activity',
+    'achv.a2.title':'Closer','achv.a2.desc':'Win your first deal',
+    'achv.a3.title':'Hat-Trick','achv.a3.desc':'Win 3 deals',
+    'achv.a4.title':'Rainmaker','achv.a4.desc':'Win 10 deals',
+    'achv.a5.title':'Networker','achv.a5.desc':'Log 25 activities',
+    'achv.a6.title':'Marathoner','achv.a6.desc':'Log 100 activities',
+    'achv.a7.title':'Pipeline Pro','achv.a7.desc':'Manage 15 leads',
+    'achv.a8.title':'Open House Hero','achv.a8.desc':'Complete 10 viewings',
+    'achv.a9.title':'Level 10','achv.a9.desc':'Reach level 10',
+    'achv.a10.title':'Point Collector','achv.a10.desc':'Bank 2,000 reward points',
+    'achv.unlocked':'{n} / {total} unlocked',
+    'title.t-rookie.name':'Rookie Agent','title.t-rookie.desc':'Everybody starts somewhere.',
+    'title.t-hustler.name':'The Hustler','title.t-hustler.desc':'Always on the move.',
+    'title.t-closer.name':'Deal Closer','title.t-closer.desc':'Sealing the deal since day one.',
+    'title.t-shark.name':'Property Shark','title.t-shark.desc':'Smells a sale a mile away.',
+    'title.t-legend.name':'Market Legend','title.t-legend.desc':'A name buyers trust.',
+    'reward.r1.title':'Coffee Voucher','reward.r1.desc':'Rp 150k cafe gift card',
+    'reward.r2.title':'Premium Listing Boost','reward.r2.desc':'Feature a listing for 7 days',
+    'reward.r3.title':'Pro Photo Shoot','reward.r3.desc':'Professional property photography',
+    'reward.r4.title':'Movie Night','reward.r4.desc':'2 cinema tickets',
+    'reward.r5.title':'Dinner for Two','reward.r5.desc':'Fine-dining experience',
+    'reward.r6.title':'Half-Day Off','reward.r6.desc':'Take a well-earned break',
+    'reward.r7.title':'Gadget Fund','reward.r7.desc':'Rp 1.8M tech credit',
+    'reward.r8.title':'Weekend Getaway','reward.r8.desc':'2-night staycation',
+    'dash.welcome':'Welcome back,','dash.activeLeads':'Active Leads','dash.dealsWon':'Deals Won',
+    'dash.pipelineValue':'Pipeline Value','dash.closedValue':'Closed Value','dash.quickLog':'Quick Log Activity',
+    'dash.noLead':'No specific lead','dash.log':'Log +{xp} XP','dash.recent':'RECENT','dash.dailyQuests':'Daily Quests',
+    'dash.completeToday':'{n}/{total} complete today','dash.seeMore':'See weekly & monthly →','dash.rank':'Rank #{n}',
+    'leads.searchPh':'Search leads…','leads.add':'Add Lead','leads.noPref':'No preference','leads.empty':'No leads match.',
+    'leads.addOne':'Add one →','leads.addTitle':'Add new lead','leads.detailTitle':'Lead details',
+    'form.name':'Full name','form.namePh':'e.g. Budi Santoso','form.phone':'Phone','form.budget':'Budget (Rp)',
+    'form.email':'Email','form.interest':'Property interest','form.interestPh':'2BR Apartment, SCBD',
+    'form.source':'Source','form.stage':'Stage','form.notes':'Notes','form.saveLead':'Save lead',
+    'detail.budget':'Budget','detail.source':'Source','detail.lookingFor':'Looking for','detail.phone':'Phone',
+    'detail.lastContact':'Last contact','detail.logActivity':'LOG ACTIVITY (earns XP)','detail.moveStage':'MOVE TO STAGE',
+    'detail.history':'HISTORY ({n})','detail.noActivity':'No activity yet.','detail.deleteConfirm':'Delete this lead?',
+    'pipe.intro':'Drag cards between stages, or use the dropdown. Reaching Closed Won earns big XP 🏆',
+    'pipe.dropHere':'Drop here',
+    'prop.count':'{n} listings','prop.add':'Add Listing','prop.addTitle':'Add listing',
+    'prop.available':'Available','prop.pending':'Pending','prop.sold':'Sold',
+    'propform.title':'Listing title','propform.titlePh':'Skyline Apartment SCBD','propform.type':'Type',
+    'propform.price':'Price (Rp)','propform.location':'Location','propform.locationPh':'SCBD · South Jakarta',
+    'propform.beds':'Beds','propform.baths':'Baths','propform.area':'Area (m²)','propform.icon':'Icon','propform.add':'Add listing',
+    'acts.total':'Total activities','acts.todayXp':'XP earned today','acts.dealsClosed':'Deals closed',
+    'acts.empty':'No activity yet.','acts.today':'Today','acts.yesterday':'Yesterday',
+    'lb.topAgents':'Top Agents This Season','lb.you':'(You)',
+    'rw.balance':'Your balance','rw.lifetime':'Lifetime earned','rw.store':'Reward Store','rw.titles':'Titles',
+    'rw.history':'Redeemed','rw.redeem':'Redeem','rw.equip':'Equip','rw.active':'Active',
+    'rw.emptyHistory':'Nothing redeemed yet. Earn points and treat yourself! 🎁',
+    'pf.editProfile':'Edit profile','pf.totalXp':'Total XP','pf.dealsWon':'Deals Won','pf.closedValue':'Closed Value',
+    'pf.badges':'Badges','pf.equippedTitle':'Equipped Title','pf.demoControls':'Demo controls',
+    'pf.demoNote':'All data is stored locally in your browser (localStorage). Nothing leaves this device.',
+    'pf.resetDemo':'Reset demo data','pf.resetConfirm':'Reset all demo data to defaults?',
+    'pf.displayName':'Display name','pf.avatar':'Avatar','pf.toLevel':'{need} to Lv {lvl}','pf.language':'Language',
+    'toast.xpLogged':'+{xp} XP · {label} logged','toast.leadAdded':'+15 XP · New lead added',
+    'toast.dealWon':'🏆 Deal won! +{xp} XP','toast.listingAdded':'Listing added',
+    'toast.questComplete':'Quest complete: {title}  (+{xp} XP)','toast.achvUnlocked':'Badge unlocked: {title}',
+    'toast.redeemed':'Redeemed {title}!','toast.titleUnlocked':'Title unlocked: {name}',
+    'toast.dailyReset':'Daily quests refreshed','toast.dataReset':'Demo data reset','toast.notEnough':'Not enough points',
+    'lvl.up':'LEVEL UP','lvl.level':'Level {n}','lvl.tier':'{tier} Tier',
+    'lvl.msg':'Keep the momentum going — bigger rewards await at the next milestone.','lvl.go':"Let's go 🚀"
+  },
+  id:{
+    'brand.tag':'CRM Penjualan Properti','common.cancel':'Batal','common.done':'Selesai','common.delete':'Hapus',
+    'common.viewAll':'Lihat semua →','common.all':'Semua','common.pts':'poin','common.with':'dengan',
+    'nav.dashboard':'Dasbor','nav.leads':'Prospek','nav.pipeline':'Pipeline','nav.properties':'Listing',
+    'nav.activities':'Aktivitas','nav.quests':'Misi','nav.leaderboard':'Peringkat','nav.achievements':'Lencana',
+    'nav.rewards':'Hadiah','nav.profile':'Profil','nav.more':'Lainnya','nav.home':'Beranda',
+    'stage.new':'Prospek Baru','stage.contacted':'Dihubungi','stage.qualified':'Terkualifikasi','stage.viewing':'Survei',
+    'stage.negotiation':'Negosiasi','stage.won':'Closing','stage.lost':'Batal',
+    'act.call.label':'Telepon','act.email.label':'Email','act.meeting.label':'Pertemuan','act.viewing.label':'Survei',
+    'act.note.label':'Catatan','act.deal.label':'Deal Closing',
+    'act.withLead':'{label} dengan {name}','act.closedWith':'Closing deal dengan {name} 🎉',
+    'tier.Bronze':'Perunggu','tier.Silver':'Perak','tier.Gold':'Emas','tier.Platinum':'Platinum','tier.Diamond':'Berlian',
+    'source.Website':'Website','source.Referral':'Referensi','source.Walk-in':'Datang Langsung','source.Instagram':'Instagram',
+    'source.Rumah123':'Rumah123','source.Cold Call':'Telepon Dingin','source.Other':'Lainnya',
+    'quest.q-d1':'Lakukan 5 telepon','quest.q-d2':'Catat 3 aktivitas','quest.q-d3':'Tambah prospek baru',
+    'quest.q-w1':'Jadwalkan 4 survei','quest.q-w2':'Closing 1 deal','quest.q-w3':'Tambah 8 prospek baru',
+    'quest.q-m1':'Closing 5 deal','quest.q-m2':'Selesaikan 60 aktivitas',
+    'quests.daily':'Misi Harian','quests.weekly':'Misi Mingguan','quests.monthly':'Misi Bulanan',
+    'quests.dailySub':'Reset tiap hari','quests.weeklySub':'Hadiah lebih besar','quests.monthlySub':'Tantangan elite',
+    'quests.intro':'Selesaikan misi dengan mencatat aktivitas CRM nyata — hadiah otomatis diberikan. 🎉',
+    'quests.resetDailies':'Reset harian','quests.progress':'Progres','quests.completed':'Selesai','quests.doneOf':'{n}/{total} selesai',
+    'achv.a1.title':'Kontak Pertama','achv.a1.desc':'Catat aktivitas pertamamu',
+    'achv.a2.title':'Penutup Deal','achv.a2.desc':'Menangkan deal pertamamu',
+    'achv.a3.title':'Hat-Trick','achv.a3.desc':'Menangkan 3 deal',
+    'achv.a4.title':'Pembawa Hujan','achv.a4.desc':'Menangkan 10 deal',
+    'achv.a5.title':'Jago Networking','achv.a5.desc':'Catat 25 aktivitas',
+    'achv.a6.title':'Pelari Maraton','achv.a6.desc':'Catat 100 aktivitas',
+    'achv.a7.title':'Jago Pipeline','achv.a7.desc':'Kelola 15 prospek',
+    'achv.a8.title':'Pahlawan Open House','achv.a8.desc':'Selesaikan 10 survei',
+    'achv.a9.title':'Level 10','achv.a9.desc':'Capai level 10',
+    'achv.a10.title':'Kolektor Poin','achv.a10.desc':'Kumpulkan 2.000 poin hadiah',
+    'achv.unlocked':'{n} / {total} terbuka',
+    'title.t-rookie.name':'Agen Pemula','title.t-rookie.desc':'Semua orang punya awal.',
+    'title.t-hustler.name':'Sang Pekerja Keras','title.t-hustler.desc':'Selalu bergerak.',
+    'title.t-closer.name':'Penutup Deal','title.t-closer.desc':'Menutup deal sejak hari pertama.',
+    'title.t-shark.name':'Hiu Properti','title.t-shark.desc':'Mencium peluang dari jauh.',
+    'title.t-legend.name':'Legenda Pasar','title.t-legend.desc':'Nama yang dipercaya pembeli.',
+    'reward.r1.title':'Voucher Kopi','reward.r1.desc':'Voucher kafe Rp 150rb',
+    'reward.r2.title':'Boost Listing Premium','reward.r2.desc':'Tampilkan listing unggulan 7 hari',
+    'reward.r3.title':'Sesi Foto Profesional','reward.r3.desc':'Fotografi properti profesional',
+    'reward.r4.title':'Nonton Bioskop','reward.r4.desc':'2 tiket bioskop',
+    'reward.r5.title':'Makan Malam Berdua','reward.r5.desc':'Pengalaman fine-dining',
+    'reward.r6.title':'Setengah Hari Libur','reward.r6.desc':'Istirahat yang pantas',
+    'reward.r7.title':'Dana Gadget','reward.r7.desc':'Kredit gadget Rp 1,8jt',
+    'reward.r8.title':'Liburan Akhir Pekan','reward.r8.desc':'Staycation 2 malam',
+    'dash.welcome':'Selamat datang kembali,','dash.activeLeads':'Prospek Aktif','dash.dealsWon':'Deal Closing',
+    'dash.pipelineValue':'Nilai Pipeline','dash.closedValue':'Nilai Closing','dash.quickLog':'Catat Aktivitas Cepat',
+    'dash.noLead':'Tanpa prospek tertentu','dash.log':'Catat +{xp} XP','dash.recent':'TERBARU','dash.dailyQuests':'Misi Harian',
+    'dash.completeToday':'{n}/{total} selesai hari ini','dash.seeMore':'Lihat mingguan & bulanan →','dash.rank':'Peringkat #{n}',
+    'leads.searchPh':'Cari prospek…','leads.add':'Tambah Prospek','leads.noPref':'Tanpa preferensi','leads.empty':'Tidak ada prospek cocok.',
+    'leads.addOne':'Tambah →','leads.addTitle':'Tambah prospek baru','leads.detailTitle':'Detail prospek',
+    'form.name':'Nama lengkap','form.namePh':'mis. Budi Santoso','form.phone':'Telepon','form.budget':'Anggaran (Rp)',
+    'form.email':'Email','form.interest':'Properti diminati','form.interestPh':'Apartemen 2KT, SCBD',
+    'form.source':'Sumber','form.stage':'Tahap','form.notes':'Catatan','form.saveLead':'Simpan prospek',
+    'detail.budget':'Anggaran','detail.source':'Sumber','detail.lookingFor':'Mencari','detail.phone':'Telepon',
+    'detail.lastContact':'Kontak terakhir','detail.logActivity':'CATAT AKTIVITAS (dapat XP)','detail.moveStage':'PINDAH TAHAP',
+    'detail.history':'RIWAYAT ({n})','detail.noActivity':'Belum ada aktivitas.','detail.deleteConfirm':'Hapus prospek ini?',
+    'pipe.intro':'Seret kartu antar tahap, atau pakai dropdown. Mencapai Closing memberi XP besar 🏆',
+    'pipe.dropHere':'Taruh di sini',
+    'prop.count':'{n} listing','prop.add':'Tambah Listing','prop.addTitle':'Tambah listing',
+    'prop.available':'Tersedia','prop.pending':'Proses','prop.sold':'Terjual',
+    'propform.title':'Judul listing','propform.titlePh':'Apartemen Skyline SCBD','propform.type':'Tipe',
+    'propform.price':'Harga (Rp)','propform.location':'Lokasi','propform.locationPh':'SCBD · Jakarta Selatan',
+    'propform.beds':'K. Tidur','propform.baths':'K. Mandi','propform.area':'Luas (m²)','propform.icon':'Ikon','propform.add':'Tambah listing',
+    'acts.total':'Total aktivitas','acts.todayXp':'XP hari ini','acts.dealsClosed':'Deal closing',
+    'acts.empty':'Belum ada aktivitas.','acts.today':'Hari ini','acts.yesterday':'Kemarin',
+    'lb.topAgents':'Agen Terbaik Musim Ini','lb.you':'(Kamu)',
+    'rw.balance':'Saldo kamu','rw.lifetime':'Total didapat','rw.store':'Toko Hadiah','rw.titles':'Gelar',
+    'rw.history':'Ditukar','rw.redeem':'Tukar','rw.equip':'Pakai','rw.active':'Aktif',
+    'rw.emptyHistory':'Belum ada penukaran. Kumpulkan poin dan manjakan dirimu! 🎁',
+    'pf.editProfile':'Edit profil','pf.totalXp':'Total XP','pf.dealsWon':'Deal Closing','pf.closedValue':'Nilai Closing',
+    'pf.badges':'Lencana','pf.equippedTitle':'Gelar Terpasang','pf.demoControls':'Kontrol demo',
+    'pf.demoNote':'Semua data disimpan lokal di browser (localStorage). Tidak ada yang dikirim ke mana pun.',
+    'pf.resetDemo':'Reset data demo','pf.resetConfirm':'Reset semua data demo ke awal?',
+    'pf.displayName':'Nama tampilan','pf.avatar':'Avatar','pf.toLevel':'{need} menuju Lv {lvl}','pf.language':'Bahasa',
+    'toast.xpLogged':'+{xp} XP · {label} dicatat','toast.leadAdded':'+15 XP · Prospek baru ditambah',
+    'toast.dealWon':'🏆 Deal closing! +{xp} XP','toast.listingAdded':'Listing ditambah',
+    'toast.questComplete':'Misi selesai: {title}  (+{xp} XP)','toast.achvUnlocked':'Lencana terbuka: {title}',
+    'toast.redeemed':'Berhasil tukar {title}!','toast.titleUnlocked':'Gelar terbuka: {name}',
+    'toast.dailyReset':'Misi harian diperbarui','toast.dataReset':'Data demo direset','toast.notEnough':'Poin tidak cukup',
+    'lvl.up':'NAIK LEVEL','lvl.level':'Level {n}','lvl.tier':'Tier {tier}',
+    'lvl.msg':'Pertahankan momentum — hadiah lebih besar menanti di milestone berikutnya.','lvl.go':'Lanjut 🚀'
+  }
+};
+function translate(lang,key,vars){
+  let s = (I18N[lang] && I18N[lang][key]) || I18N.en[key] || key;
+  if(vars) for(const k in vars) s = s.split('{'+k+'}').join(vars[k]);
+  return s;
+}
+const LANG_KEY='propti.lang';
+function timeAgo(ts,t){
+  const s=Math.floor((now()-ts)/1000); const id = t && t('common.with')==='dengan';
+  if(s<60) return id?'baru saja':'just now';
+  const m=Math.floor(s/60); if(m<60) return m+'m';
+  const h=Math.floor(m/60); if(h<24) return h+'j';
+  const d=Math.floor(h/24); if(d<7) return d+(id?'h':'d');
+  return new Date(ts).toLocaleDateString('id-ID');
+}
+
+/* ---------- gamification math ---------- */
+function levelInfo(xp){
+  let level=1, need=120, acc=0;
+  while(xp>=acc+need){ acc+=need; level++; need=Math.round(need*1.22); }
+  const into=xp-acc;
+  return {level,into,need,pct:Math.max(0,Math.min(100,Math.round(into/need*100)))};
+}
+const TIERS=[
+  {name:'Bronze',min:1,color:'#a86523',bg:'#f6e7d2',emoji:'🥉'},
+  {name:'Silver',min:5,color:'#5b6675',bg:'#e6e9ee',emoji:'🥈'},
+  {name:'Gold',min:10,color:'#a9821a',bg:'#f6ecc4',emoji:'🥇'},
+  {name:'Platinum',min:16,color:'#2f7d86',bg:'#d2eef0',emoji:'💎'},
+  {name:'Diamond',min:24,color:'#244c72',bg:'#d9e6ef',emoji:'👑'},
+];
+const tierFor=lvl=>{ let t=TIERS[0]; for(const x of TIERS) if(lvl>=x.min) t=x; return t; };
+
+const ACT_TYPES={
+  call:{icon:'📞',xp:20,pts:10,color:'#244c72'},
+  email:{icon:'✉️',xp:10,pts:5,color:'#2f7d86'},
+  meeting:{icon:'🤝',xp:40,pts:20,color:'#6b4ea8'},
+  viewing:{icon:'🏠',xp:55,pts:30,color:'#c9731b'},
+  note:{icon:'📝',xp:5,pts:2,color:'#7a8493'},
+  deal:{icon:'🏆',xp:240,pts:150,color:'#1f8a52'},
+};
+const STAGES=[
+  {id:'new',color:'#7a8493'},{id:'contacted',color:'#244c72'},{id:'qualified',color:'#2f7d86'},
+  {id:'viewing',color:'#c9731b'},{id:'negotiation',color:'#b06a12'},{id:'won',color:'#1f8a52'},{id:'lost',color:'#c0392b'},
+];
+const stageMeta=id=>STAGES.find(s=>s.id===id)||STAGES[0];
+const SOURCES=['Website','Referral','Walk-in','Instagram','Rumah123','Cold Call','Other'];
+const PROP_TYPES=['Apartemen','Rumah','Penthouse','Studio','Townhouse','Villa','Ruko'];
+
+/* ---------- seed (Indonesia / IDR) ---------- */
+function seedQuests(){
+  const q=(id,type,metric,target,xp,pts,icon)=>({id,type,metric,target,xp,pts,icon,progress:0,done:false,claimed:false});
+  return [
+    q('q-d1','daily','call',5,60,30,'📞'), q('q-d2','daily','any',3,40,20,'⚡'), q('q-d3','daily','lead',1,50,25,'➕'),
+    q('q-w1','weekly','viewing',4,200,120,'🏠'), q('q-w2','weekly','deal',1,300,200,'🤝'), q('q-w3','weekly','lead',8,180,100,'📇'),
+    q('q-m1','monthly','deal',5,800,500,'💼'), q('q-m2','monthly','any',60,600,400,'🔥'),
+  ];
+}
+function seedAchievements(){
+  const a=(id,icon,xp,pts,fn)=>({id,icon,xp,pts,check:fn});
+  return [
+    a('a1','🌱',50,25,s=>s.totalActs>=1), a('a2','🏆',200,150,s=>s.dealsWon>=1), a('a3','🎩',400,300,s=>s.dealsWon>=3),
+    a('a4','🌧️',1000,800,s=>s.dealsWon>=10), a('a5','🕸️',250,150,s=>s.totalActs>=25), a('a6','🏃',700,500,s=>s.totalActs>=100),
+    a('a7','📈',300,200,s=>s.leadCount>=15), a('a8','🚪',350,250,s=>s.viewings>=10), a('a9','🔟',0,300,s=>s.level>=10),
+    a('a10','🪙',0,0,s=>s.lifetimePoints>=2000),
+  ];
+}
+const ACH_DEFS=seedAchievements();
+const TITLES=[
+  {id:'t-rookie',cost:0,icon:'🐣'},{id:'t-hustler',cost:300,icon:'⚡'},{id:'t-closer',cost:600,icon:'🤝'},
+  {id:'t-shark',cost:1200,icon:'🦈'},{id:'t-legend',cost:2500,icon:'👑'},
+];
+const REWARDS=[
+  {id:'r1',cost:200,icon:'☕'},{id:'r2',cost:450,icon:'🚀'},{id:'r3',cost:800,icon:'📸'},{id:'r4',cost:350,icon:'🎬'},
+  {id:'r5',cost:900,icon:'🍝'},{id:'r6',cost:1500,icon:'🏖️'},{id:'r7',cost:2200,icon:'🎧'},{id:'r8',cost:4000,icon:'✈️'},
+];
+function seedLeads(){
+  const L=(name,phone,status,budget,interest,source,d,note)=>({id:uid(),name,phone,
+    email:name.toLowerCase().replace(/[^a-z]/g,'.')+'@mail.com',status,budget,interest,source,notes:note||'',
+    createdAt:now()-d*864e5,lastContact:now()-Math.floor(d/2)*864e5});
+  return [
+    L('Siti Rahmawati','+62 812 3344 1122','qualified',2500000000,'Apartemen 2KT, SCBD','Website',2,'Sudah pre-approved KPR, ingin view kota'),
+    L('Budi Santoso','+62 813 5566 7788','viewing',6500000000,'Rumah keluarga, BSD','Referral',5,'Punya 2 anak, butuh dekat sekolah'),
+    L('Dewi Lestari','+62 821 2211 9090','negotiation',1800000000,'Apartemen 2KT, Kelapa Gading','Walk-in',8,'Negosiasi tanggal serah terima'),
+    L('Agus Wijaya','+62 838 7788 1234','contacted',1200000000,'Studio, Sudirman','Instagram',1,''),
+    L('Rina Hartono','+62 811 9090 5050','new',12000000000,'Penthouse mewah, Pondok Indah','Rumah123',0,'Intensi tinggi, pembeli cash'),
+    L('Hendra Gunawan','+62 819 6677 2323','won',4200000000,'Townhouse, Bintaro','Referral',20,'Sudah closing! Klien menyenangkan.'),
+    L('Putri Anggraini','+62 822 3434 5656','qualified',2100000000,'Apartemen 1KT, Kemang','Website',3,''),
+    L('Joko Susilo','+62 856 1212 7878','lost',900000000,'Studio, Depok','Walk-in',12,'Memilih agen lain'),
+  ];
+}
+function seedProps(){
+  const P=(title,type,price,loc,beds,baths,area,status,img)=>({id:uid(),title,type,price,loc,beds,baths,area,status,img});
+  return [
+    P('Skyline Apartemen SCBD','Apartemen',3200000000,'SCBD · Jakarta Selatan',3,2,120,'available','🏙️'),
+    P('Rumah Maple Grove BSD','Rumah',6800000000,'BSD City · Tangerang',4,3,240,'available','🏡'),
+    P('The Glass Penthouse','Penthouse',18500000000,'Pondok Indah · Jaksel',4,4,320,'pending','🌆'),
+    P('Loft Studio Kemang','Studio',950000000,'Kemang · Jakarta Selatan',1,1,38,'available','🛏️'),
+    P('Apartemen Garden Court','Apartemen',2400000000,'Menteng · Jakarta Pusat',2,2,75,'available','🏬'),
+    P('Townhouse Bintaro','Townhouse',4200000000,'Bintaro · Tangsel',3,2,150,'sold','🏘️'),
+  ];
+}
+function seedActivities(leads){
+  const pick=()=>leads[Math.floor(Math.random()*leads.length)];
+  const types=['call','email','meeting','viewing','note']; const arr=[];
+  for(let i=0;i<14;i++){ const t=types[Math.floor(Math.random()*types.length)]; const lead=pick();
+    arr.push({id:uid(),type:t,leadId:lead.id,leadName:lead.name,
+      ts:now()-Math.floor(Math.random()*9)*864e5-Math.floor(Math.random()*20)*36e5,xp:ACT_TYPES[t].xp,pts:ACT_TYPES[t].pts}); }
+  arr.push({id:uid(),type:'deal',leadId:null,leadName:'Hendra Gunawan',ts:now()-20*864e5,xp:ACT_TYPES.deal.xp,pts:ACT_TYPES.deal.pts});
+  return arr.sort((a,b)=>b.ts-a.ts);
+}
+const RIVALS=[
+  {id:'r-maya',name:'Maya Kusuma',avatar:'👩',xp:5120},{id:'r-rizki',name:'Rizki Pratama',avatar:'🧔',xp:4380},
+  {id:'r-indah',name:'Indah Permata',avatar:'👧',xp:3960},{id:'r-fajar',name:'Fajar Nugroho',avatar:'👨',xp:2740},
+  {id:'r-sari',name:'Sari Dewi',avatar:'👱',xp:1980},{id:'r-bayu',name:'Bayu Saputra',avatar:'🧑',xp:1450},
+];
+
+/* ---------- persistence ---------- */
+const KEY='propti.v1';
+function freshDB(){
+  const leads=seedLeads();
+  return {
+    profile:{name:'Andi Pratama',avatar:'😎',xp:1620,points:540,lifetimePoints:540,
+      titleId:'t-hustler',ownedTitles:['t-rookie','t-hustler'],joined:now()-40*864e5},
+    leads, properties:seedProps(), activities:seedActivities(leads),
+    quests:seedQuests(), achievements:seedAchievements().map(a=>({id:a.id,unlocked:false})),
+    redeemed:[], lastDailyReset:dayKey(),
+  };
+}
+function loadDB(){ try{ const raw=localStorage.getItem(KEY); if(raw){ const d=JSON.parse(raw); if(d.profile && /‍/.test(d.profile.avatar||'')) d.profile.avatar='😎'; return d; } }catch(e){} const d=freshDB(); save(d); return d; }
+function save(d){ try{ localStorage.setItem(KEY,JSON.stringify(d)); }catch(e){} }
+
+/* activity description (language-aware) */
+function mkDesc(t,a){
+  if(a.type==='deal') return t('act.closedWith',{name:a.leadName||''});
+  const label=t('act.'+a.type+'.label');
+  if(a.leadName && a.leadName!=='—') return t('act.withLead',{label,name:a.leadName});
+  return label;
+}
+
+/* ============ App Context ============ */
+const Ctx=createContext(null);
+const useApp=()=>useContext(Ctx);
+
+function AppProvider({children}){
+  const [db,setDb]=useState(loadDB);
+  const [lang,setLangState]=useState(()=>{ try{ return localStorage.getItem(LANG_KEY)||'id'; }catch(e){ return 'id'; } });
+  const [toasts,setToasts]=useState([]);
+  const [confetti,setConfetti]=useState(0);
+  const [levelUp,setLevelUp]=useState(null);
+
+  useEffect(()=>{ save(db); },[db]);
+  const setLang=useCallback(l=>{ setLangState(l); try{ localStorage.setItem(LANG_KEY,l); }catch(e){} },[]);
+  const t=useCallback((k,v)=>translate(lang,k,v),[lang]);
+
+  const toast=useCallback((msg,opts={})=>{ const id=uid(); setToasts(x=>[...x,{id,msg,...opts}]);
+    setTimeout(()=>setToasts(x=>x.filter(o=>o.id!==id)),opts.dur||3200); },[]);
+  const celebrate=useCallback(()=>setConfetti(c=>c+1),[]);
+
+  const stats=useMemo(()=>{ const a=db.activities; return {
+    totalActs:a.length, dealsWon:a.filter(x=>x.type==='deal').length, viewings:a.filter(x=>x.type==='viewing').length,
+    leadCount:db.leads.length, level:levelInfo(db.profile.xp).level, lifetimePoints:db.profile.lifetimePoints }; },[db]);
+
+  useEffect(()=>{
+    let gx=0,gp=0,newly=[]; const map=Object.fromEntries(db.achievements.map(a=>[a.id,a.unlocked]));
+    ACH_DEFS.forEach(def=>{ if(!map[def.id] && def.check(stats)){ map[def.id]=true; gx+=def.xp; gp+=def.pts; newly.push(def); } });
+    if(newly.length){
+      setDb(d=>({...d, achievements:d.achievements.map(a=>({...a,unlocked:map[a.id]})),
+        profile:{...d.profile,xp:d.profile.xp+gx,points:d.profile.points+gp,lifetimePoints:d.profile.lifetimePoints+gp}}));
+      newly.forEach(n=>toast(t('toast.achvUnlocked',{title:t('achv.'+n.id+'.title')}),{icon:n.icon,kind:'achv'}));
+      celebrate();
+    }
+  },[stats.totalActs,stats.dealsWon,stats.viewings,stats.leadCount,stats.level,stats.lifetimePoints]);
+
+  const applyGain=useCallback((xp,pts,metric)=>{
+    setDb(d=>{
+      const before=levelInfo(d.profile.xp).level, after=levelInfo(d.profile.xp+xp).level;
+      let bonusXp=0,bonusPts=0,completed=[];
+      const quests=d.quests.map(q=>{
+        if(q.done) return q;
+        const hit=q.metric===metric || (q.metric==='any' && metric!=='lead');
+        if(!hit) return q;
+        const progress=Math.min(q.target,q.progress+1); const done=progress>=q.target;
+        if(done && !q.claimed){ bonusXp+=q.xp; bonusPts+=q.pts; completed.push(q); return {...q,progress,done:true,claimed:true}; }
+        return {...q,progress,done};
+      });
+      setTimeout(()=>{
+        completed.forEach(q=>toast(t('toast.questComplete',{title:t('quest.'+q.id),xp:q.xp}),{icon:q.icon,kind:'quest'}));
+        if(completed.length) celebrate();
+        if(after>before){ setLevelUp(after); celebrate(); }
+      },0);
+      const totalPts=pts+bonusPts;
+      return {...d,quests,profile:{...d.profile,xp:d.profile.xp+xp+bonusXp,points:d.profile.points+totalPts,lifetimePoints:d.profile.lifetimePoints+totalPts}};
+    });
+  },[toast,celebrate,t]);
+
+  const actions=useMemo(()=>({
+    logActivity({type,leadId}){
+      const at=ACT_TYPES[type]; const lead=db.leads.find(l=>l.id===leadId);
+      const entry={id:uid(),type,leadId:leadId||null,leadName:lead?lead.name:'—',ts:now(),xp:at.xp,pts:at.pts};
+      setDb(d=>({...d,activities:[entry,...d.activities],leads:leadId?d.leads.map(l=>l.id===leadId?{...l,lastContact:now()}:l):d.leads}));
+      applyGain(at.xp,at.pts,type);
+      toast(t('toast.xpLogged',{xp:at.xp,label:t('act.'+type+'.label')}),{icon:at.icon,kind:'xp'});
+    },
+    addLead(data){ const lead={id:uid(),createdAt:now(),lastContact:now(),status:'new',notes:'',...data};
+      setDb(d=>({...d,leads:[lead,...d.leads]})); applyGain(15,8,'lead'); toast(t('toast.leadAdded'),{icon:'➕',kind:'xp'}); return lead; },
+    updateLead(id,patch){ setDb(d=>({...d,leads:d.leads.map(l=>l.id===id?{...l,...patch}:l)})); },
+    moveLead(id,status){ const lead=db.leads.find(l=>l.id===id); const wasWon=lead&&lead.status==='won';
+      setDb(d=>({...d,leads:d.leads.map(l=>l.id===id?{...l,status,lastContact:now()}:l)}));
+      if(status==='won' && !wasWon){ const at=ACT_TYPES.deal;
+        const entry={id:uid(),type:'deal',leadId:id,leadName:lead?lead.name:'—',ts:now(),xp:at.xp,pts:at.pts};
+        setDb(d=>({...d,activities:[entry,...d.activities]})); applyGain(at.xp,at.pts,'deal');
+        toast(t('toast.dealWon',{xp:at.xp}),{icon:'🏆',kind:'xp',dur:4200}); celebrate(); } },
+    deleteLead(id){ setDb(d=>({...d,leads:d.leads.filter(l=>l.id!==id)})); },
+    addProperty(data){ setDb(d=>({...d,properties:[{id:uid(),status:'available',img:'🏠',...data},...d.properties]})); toast(t('toast.listingAdded'),{icon:'🏠'}); },
+    updateProperty(id,patch){ setDb(d=>({...d,properties:d.properties.map(p=>p.id===id?{...p,...patch}:p)})); },
+    redeemReward(r){ if(db.profile.points<r.cost){ toast(t('toast.notEnough'),{icon:'🚫',kind:'err'}); return; }
+      setDb(d=>({...d,profile:{...d.profile,points:d.profile.points-r.cost},redeemed:[{id:uid(),rid:r.id,icon:r.icon,cost:r.cost,ts:now()},...d.redeemed]}));
+      toast(t('toast.redeemed',{title:t('reward.'+r.id+'.title')}),{icon:r.icon,kind:'reward'}); celebrate(); },
+    buyTitle(tt){ if(db.profile.ownedTitles.includes(tt.id)){ actions.setTitle(tt.id); return; }
+      if(db.profile.points<tt.cost){ toast(t('toast.notEnough'),{icon:'🚫',kind:'err'}); return; }
+      setDb(d=>({...d,profile:{...d.profile,points:d.profile.points-tt.cost,ownedTitles:[...d.profile.ownedTitles,tt.id],titleId:tt.id}}));
+      toast(t('toast.titleUnlocked',{name:t('title.'+tt.id+'.name')}),{icon:tt.icon,kind:'reward'}); celebrate(); },
+    setTitle(id){ setDb(d=>({...d,profile:{...d.profile,titleId:id}})); },
+    updateProfile(patch){ setDb(d=>({...d,profile:{...d.profile,...patch}})); },
+    resetDailies(){ setDb(d=>({...d,quests:d.quests.map(q=>q.type==='daily'?{...q,progress:0,done:false,claimed:false}:q),lastDailyReset:dayKey()})); toast(t('toast.dailyReset'),{icon:'🔄'}); },
+    resetAll(){ setDb(freshDB()); toast(t('toast.dataReset'),{icon:'♻️'}); }
+  }),[db,applyGain,toast,celebrate,t]);
+
+  const value={db,stats,actions,toast,celebrate,levelUp,setLevelUp,lang,setLang,t};
+  return html`<${Ctx.Provider} value=${value}>
+    ${children}
+    <${ToastHost} toasts=${toasts} />
+    ${confetti>0 && html`<${Confetti} key=${confetti} />`}
+    ${levelUp && html`<${LevelUpModal} level=${levelUp} onClose=${()=>setLevelUp(null)} />`}
+  <//>`;
+}
+
+/* ============ icons (SVG line) ============ */
+function Icon({name,size=20,sw=1.8}){
+  const c={
+    dashboard:html`<${Fragment}><rect x="3" y="3" width="7" height="7" rx="1.6"/><rect x="14" y="3" width="7" height="7" rx="1.6"/><rect x="14" y="14" width="7" height="7" rx="1.6"/><rect x="3" y="14" width="7" height="7" rx="1.6"/><//>`,
+    leads:html`<${Fragment}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/><//>`,
+    pipeline:html`<${Fragment}><rect x="3" y="3" width="5" height="18" rx="1.6"/><rect x="10" y="3" width="5" height="12" rx="1.6"/><rect x="17" y="3" width="5" height="8" rx="1.6"/><//>`,
+    properties:html`<${Fragment}><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.4V21h14V9.4"/><path d="M9.5 21v-6h5v6"/><//>`,
+    activities:html`<path d="M3 12h4l3 8 4-16 3 8h4"/>`,
+    quests:html`<${Fragment}><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4"/><//>`,
+    leaderboard:html`<${Fragment}><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M17 5h3v2a3 3 0 0 1-3 3"/><path d="M7 5H4v2a3 3 0 0 0 3 3"/><//>`,
+    achievements:html`<${Fragment}><circle cx="12" cy="8" r="5"/><path d="M8.6 12.4 7 22l5-3 5 3-1.6-9.6"/><//>`,
+    rewards:html`<${Fragment}><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M5 12v9h14v-9"/><path d="M12 8S11 3 8 3a2.5 2.5 0 0 0 0 5z"/><path d="M12 8s1-5 4-5a2.5 2.5 0 0 1 0 5z"/><//>`,
+    profile:html`<${Fragment}><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/><//>`,
+    more:html`<${Fragment}><circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/><//>`,
+    search:html`<${Fragment}><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/><//>`,
+    plus:html`<${Fragment}><path d="M12 5v14M5 12h14"/><//>`,
+    close:html`<path d="M18 6 6 18M6 6l12 12"/>`,
+    money:html`<${Fragment}><rect x="2" y="6" width="20" height="12" rx="2.5"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/><//>`,
+    check:html`<path d="M20 6 9 17l-5-5"/>`,
+    bolt:html`<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>`,
+    coin:html`<${Fragment}><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.2 9.2A2.8 2 0 0 1 12 8a2.8 2 0 0 1 0 4 2.8 2 0 0 0 0 4 2.8 2 0 0 0 2.8-1"/><//>`,
+    bed:html`<${Fragment}><path d="M3 7v10M3 12h18v5M21 17v-4a3 3 0 0 0-3-3H9v3"/><//>`,
+    bath:html`<${Fragment}><path d="M4 12V6a2 2 0 0 1 4 0v1M3 12h18v3a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4z"/><//>`,
+    area:html`<${Fragment}><path d="M3 9V3h6M21 15v6h-6M3 3l7 7M21 21l-7-7"/><//>`,
+  }[name]||null;
+  return html`<svg width=${size} height=${size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width=${sw} stroke-linecap="round" stroke-linejoin="round">${c}</svg>`;
+}
+
+/* ============ atoms ============ */
+function ToastHost({toasts}){
+  const accent={xp:'#244c72',quest:ACCENT,achv:'#b06a12',reward:'#1f8a52',err:'#c0392b',default:'#1d3856'};
+  return html`<div class="fixed z-[60] top-3 left-1/2 -translate-x-1/2 sm:left-auto sm:right-4 sm:translate-x-0 flex flex-col gap-2 w-[92vw] sm:w-80 pointer-events-none">
+    ${toasts.map(o=>{ const c=accent[o.kind]||accent.default; return html`<div key=${o.id} class="anim-up pointer-events-auto bg-white rounded-xl shadow-lift border border-slate-100 pl-1.5 pr-4 py-1.5 flex items-center gap-3">
+      <span class="w-9 h-9 rounded-lg grid place-items-center text-lg shrink-0" style=${{background:c+'18'}}>${o.icon||'✨'}</span>
+      <span class="text-sm font-semibold text-slate-800 leading-tight">${o.msg}</span>
+    </div>`; })}
+  </div>`;
+}
+function Confetti(){
+  const items=useMemo(()=>Array.from({length:40}).map(()=>({left:Math.random()*100,delay:Math.random()*.4,dur:1.6+Math.random()*1.2,
+    e:['🎉','🎊','⭐','✨','🏆','🟦','🟧'][Math.floor(Math.random()*7)]})),[]);
+  const [show,setShow]=useState(true);
+  useEffect(()=>{ const x=setTimeout(()=>setShow(false),2600); return ()=>clearTimeout(x); },[]);
+  if(!show) return null;
+  return html`<${Fragment}>${items.map((c,i)=>html`<div key=${i} class="confetti" style=${{left:c.left+'vw',animationDuration:c.dur+'s',animationDelay:c.delay+'s'}}>${c.e}</div>`)}<//>`;
+}
+function LevelUpModal({level,onClose}){
+  const {t}=useApp(); const tier=tierFor(level);
+  return html`<div class="fixed inset-0 z-[70] bg-brand-900/55 backdrop-blur-sm flex items-center justify-center p-4" onClick=${onClose}>
+    <div class="card anim-pop max-w-sm w-full p-8 text-center" onClick=${e=>e.stopPropagation()}>
+      <div class="text-6xl mb-2">${tier.emoji}</div>
+      <div class="text-xs font-bold tracking-widest text-gold-500">${t('lvl.up')}</div>
+      <div class="text-4xl font-extrabold font-display mt-1 text-brand-800">${t('lvl.level',{n:level})}</div>
+      <div class="mt-2 inline-block px-3 py-1 rounded-full text-sm font-bold" style=${{background:tier.bg,color:tier.color}}>${t('lvl.tier',{tier:t('tier.'+tier.name)})}</div>
+      <p class="text-slate-500 text-sm mt-4">${t('lvl.msg')}</p>
+      <button onClick=${onClose} class="mt-6 w-full bg-brand-700 hover:bg-brand-800 text-white font-bold py-3 rounded-xl transition">${t('lvl.go')}</button>
+    </div>
+  </div>`;
+}
+function Modal({open,onClose,title,children,wide}){
+  if(!open) return null;
+  return html`<div class="fixed inset-0 z-50 bg-brand-900/45 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-4" onClick=${onClose}>
+    <div class=${cls('anim-up w-full bg-white max-h-[92vh] overflow-auto rounded-t-2xl sm:rounded-2xl border border-slate-100',wide?'sm:max-w-2xl':'sm:max-w-md')} onClick=${e=>e.stopPropagation()}>
+      <div class="sticky top-0 bg-white/95 backdrop-blur px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+        <h3 class="font-bold text-lg font-display text-brand-800">${title}</h3>
+        <button onClick=${onClose} class="w-8 h-8 rounded-full hover:bg-slate-100 grid place-items-center text-slate-500"><${Icon} name="close" size=18 /></button>
+      </div>
+      <div class="p-5">${children}</div>
+    </div>
+  </div>`;
+}
+const Field=({label,children})=>html`<label class="block mb-3"><span class="text-xs font-semibold text-slate-500">${label}</span>${children}</label>`;
+const inputCls="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400 transition";
+function Stat({icon,label,value,accent}){
+  return html`<div class="card shadow-card p-4 flex items-center gap-3">
+    <div class="w-11 h-11 rounded-xl grid place-items-center shrink-0" style=${{background:(accent||NAVY6)+'15',color:accent||NAVY6}}><${Icon} name=${icon} size=22 /></div>
+    <div class="min-w-0"><div class="text-xl font-extrabold font-display leading-none text-brand-800">${value}</div><div class="text-xs text-slate-500 mt-1 truncate">${label}</div></div>
+  </div>`;
+}
+function Progress({pct,color=NAVY6,h=8}){
+  return html`<div class="w-full rounded-full bg-slate-100 overflow-hidden" style=${{height:h+'px'}}>
+    <div class="bar-fill h-full rounded-full" style=${{width:Math.max(3,pct)+'%',background:color}}></div></div>`;
+}
+function Badge({children,color=NAVY6,bg}){
+  return html`<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold" style=${{color,background:bg||color+'15'}}>${children}</span>`;
+}
+function Avatar({emoji,size=40,ring}){
+  return html`<div class=${cls('rounded-full grid place-items-center bg-brand-50',ring&&'ring-2 ring-gold-300')} style=${{width:size,height:size,fontSize:size*0.5}}>${emoji}</div>`;
+}
+function LangToggle(){
+  const {lang,setLang}=useApp();
+  return html`<div class="flex items-center rounded-lg border border-slate-200 overflow-hidden text-xs font-bold bg-white">
+    ${['en','id'].map(l=>html`<button key=${l} onClick=${()=>setLang(l)} class=${cls('px-2.5 py-1.5 transition',lang===l?'bg-brand-700 text-white':'text-slate-500 hover:bg-slate-50')}>${l.toUpperCase()}</button>`)}
+  </div>`;
+}
+
+/* ============ navigation ============ */
+const NAV=['dashboard','leads','pipeline','properties','activities','quests','leaderboard','achievements','rewards','profile'];
+const MOBILE_NAV=['dashboard','leads','pipeline','quests','more'];
+
+function Sidebar({route,go}){
+  const {db,t}=useApp(); const li=levelInfo(db.profile.xp); const tier=tierFor(li.level);
+  return html`<aside class="hidden lg:flex flex-col w-64 shrink-0 bg-white border-r border-slate-100 h-screen sticky top-0">
+    <div class="px-5 py-5 flex items-center gap-2.5">
+      <div class="w-9 h-9 rounded-xl bg-brand-800 grid place-items-center text-gold-300 font-black font-display">P</div>
+      <div><div class="font-extrabold font-display leading-none text-brand-800">Propti</div><div class="text-[11px] text-slate-400">${t('brand.tag')}</div></div>
+    </div>
+    <nav class="flex-1 px-3 space-y-0.5 overflow-auto no-scrollbar">
+      ${NAV.map(id=>html`<button key=${id} onClick=${()=>go(id)} class=${cls('w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition',route===id?'bg-brand-800 text-white':'text-slate-600 hover:bg-slate-100')}>
+        <${Icon} name=${id} size=19 /> ${t('nav.'+id)}</button>`)}
+    </nav>
+    <button onClick=${()=>go('profile')} class="m-3 p-3 rounded-xl bg-slate-50 hover:bg-slate-100 transition flex items-center gap-3 text-left">
+      <${Avatar} emoji=${db.profile.avatar} size=40 />
+      <div class="min-w-0 flex-1"><div class="text-sm font-bold truncate text-brand-800">${db.profile.name}</div>
+        <div class="text-[11px]" style=${{color:tier.color}}>${tier.emoji} Lv ${li.level} · ${t('tier.'+tier.name)}</div></div>
+    </button>
+  </aside>`;
+}
+function MobileNav({route,go,openMore}){
+  const {t}=useApp();
+  const lbl={dashboard:'nav.home',leads:'nav.leads',pipeline:'nav.pipeline',quests:'nav.quests',more:'nav.more'};
+  return html`<nav class="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur border-t border-slate-100 flex" style=${{paddingBottom:'env(safe-area-inset-bottom)'}}>
+    ${MOBILE_NAV.map(id=>{ const active=id==='more'?false:route===id;
+      return html`<button key=${id} onClick=${()=>id==='more'?openMore():go(id)} class=${cls('flex-1 py-2 flex flex-col items-center gap-0.5 text-[10px] font-bold transition',active?'text-brand-800':'text-slate-400')}>
+        <${Icon} name=${id} size=21 /> ${t(lbl[id])}</button>`; })}
+  </nav>`;
+}
+function TopBar({title,go}){
+  const {db}=useApp(); const li=levelInfo(db.profile.xp); const tier=tierFor(li.level);
+  return html`<header class="sticky top-0 z-30 bg-paper/85 backdrop-blur border-b border-[#e4dfd2]">
+    <div class="px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
+      <div class="lg:hidden flex items-center gap-2"><div class="w-8 h-8 rounded-lg bg-brand-800 grid place-items-center text-gold-300 font-black font-display">P</div><span class="font-extrabold font-display text-brand-800">Propti</span></div>
+      <h1 class="hidden lg:block text-xl font-extrabold font-display text-brand-800">${title}</h1>
+      <div class="flex items-center gap-1.5 sm:gap-3 shrink-0">
+        <${LangToggle} />
+        <div class="hidden sm:flex items-center gap-1.5 text-gold-700 px-2.5 py-1.5 rounded-lg text-sm font-bold" style=${{background:ACCENT+'18'}}><${Icon} name="coin" size=16 /> ${db.profile.points}</div>
+        <div class="flex items-center gap-1.5 sm:gap-2 bg-white border border-slate-200 px-2 sm:px-2.5 py-1.5 rounded-lg">
+          <span class="text-sm">${tier.emoji}</span><div class="hidden sm:block w-24"><${Progress} pct=${li.pct} h=6 color=${ACCENT} /></div><span class="text-xs font-bold text-slate-600">Lv${li.level}</span>
+        </div>
+        <button onClick=${()=>go('profile')}><${Avatar} emoji=${db.profile.avatar} size=36 ring=${true} /></button>
+      </div>
+    </div>
+  </header>`;
+}
+
+/* ============ pages ============ */
+function Dashboard({go}){
+  const {db,stats,actions,t}=useApp();
+  const li=levelInfo(db.profile.xp); const tier=tierFor(li.level);
+  const won=db.leads.filter(l=>l.status==='won');
+  const pipelineValue=db.leads.filter(l=>!['won','lost'].includes(l.status)).reduce((s,l)=>s+(+l.budget||0),0);
+  const wonValue=won.reduce((s,l)=>s+(+l.budget||0),0);
+  const active=db.leads.filter(l=>!['won','lost'].includes(l.status)).length;
+  const dailies=db.quests.filter(q=>q.type==='daily'); const dailyDone=dailies.filter(q=>q.done).length;
+  const rank=useMemo(()=>[...RIVALS.map(r=>r.xp),db.profile.xp].sort((a,b)=>b-a).indexOf(db.profile.xp)+1,[db.profile.xp]);
+  const [qt,setQt]=useState('call'); const [ql,setQl]=useState('');
+  return html`<div class="space-y-5">
+    <div class="hero rounded-2xl p-5 sm:p-6 text-white relative overflow-hidden anim-up">
+      <div class="absolute -right-6 -top-8 text-[120px] opacity-10 select-none">${tier.emoji}</div>
+      <div class="relative">
+        <div class="text-sm text-white/80">${t('dash.welcome')}</div>
+        <div class="text-2xl sm:text-3xl font-extrabold font-display">${db.profile.name} ${db.profile.avatar}</div>
+        <div class="mt-2 flex flex-wrap items-center gap-2 text-sm">
+          <span class="bg-white/15 px-2.5 py-1 rounded-lg font-bold">${tier.emoji} ${t('tier.'+tier.name)}</span>
+          <span class="bg-white/15 px-2.5 py-1 rounded-lg font-bold">🏅 ${t('dash.rank',{n:rank})}</span>
+          <span class="px-2.5 py-1 rounded-lg font-bold" style=${{background:ACCENT,color:'#1d2a1a'}}>🪙 ${db.profile.points} ${t('common.pts')}</span>
+        </div>
+        <div class="mt-4">
+          <div class="flex justify-between text-xs font-semibold mb-1 text-white/85"><span>Level ${li.level}</span><span>${li.into} / ${li.need} XP</span></div>
+          <div class="bg-white/20 rounded-full h-2.5 overflow-hidden"><div class="bar-fill h-full rounded-full" style=${{width:Math.max(3,li.pct)+'%',background:ACCENT}}></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <${Stat} icon="leads" label=${t('dash.activeLeads')} value=${active} accent="#244c72" />
+      <${Stat} icon="leaderboard" label=${t('dash.dealsWon')} value=${stats.dealsWon} accent="#1f8a52" />
+      <${Stat} icon="money" label=${t('dash.pipelineValue')} value=${fmtK(pipelineValue)} accent="#c9731b" />
+      <${Stat} icon="check" label=${t('dash.closedValue')} value=${fmtK(wonValue)} accent="#6b4ea8" />
+    </div>
+
+    <div class="grid lg:grid-cols-3 gap-4">
+      <div class="card shadow-card p-5 lg:col-span-2">
+        <div class="flex items-center justify-between mb-3"><h3 class="font-bold font-display text-brand-800 flex items-center gap-2"><${Icon} name="bolt" size=18 /> ${t('dash.quickLog')}</h3><button onClick=${()=>go('activities')} class="text-xs font-bold text-brand-600">${t('common.viewAll')}</button></div>
+        <div class="flex flex-wrap gap-2 mb-3">
+          ${Object.entries(ACT_TYPES).filter(([k])=>k!=='deal').map(([k,v])=>html`<button key=${k} onClick=${()=>setQt(k)} class=${cls('px-3 py-2 rounded-xl text-sm font-bold border transition flex items-center gap-1.5',qt===k?'border-brand-500 bg-brand-50 text-brand-700':'border-slate-200 text-slate-600 hover:border-slate-300')}>
+            ${v.icon} ${t('act.'+k+'.label')} <span class="text-[10px] opacity-70">+${v.xp}</span></button>`)}
+        </div>
+        <div class="flex flex-col sm:flex-row gap-2">
+          <select value=${ql} onChange=${e=>setQl(e.target.value)} class=${inputCls+' flex-1'}>
+            <option value="">${t('dash.noLead')}</option>
+            ${db.leads.filter(l=>l.status!=='lost').map(l=>html`<option key=${l.id} value=${l.id}>${l.name}</option>`)}
+          </select>
+          <button onClick=${()=>actions.logActivity({type:qt,leadId:ql||null})} class="bg-brand-700 hover:bg-brand-800 text-white font-bold px-5 py-2.5 rounded-xl transition whitespace-nowrap">${t('dash.log',{xp:ACT_TYPES[qt].xp})}</button>
+        </div>
+        <div class="mt-4 border-t border-slate-100 pt-3">
+          <div class="text-xs font-bold text-slate-400 mb-2">${t('dash.recent')}</div>
+          <div class="space-y-2">
+            ${db.activities.slice(0,4).map(a=>html`<div key=${a.id} class="flex items-center gap-3 text-sm">
+              <span class="w-8 h-8 grid place-items-center rounded-lg bg-slate-50">${ACT_TYPES[a.type].icon}</span>
+              <span class="flex-1 truncate text-slate-700">${mkDesc(t,a)}</span><span class="text-xs text-slate-400">${timeAgo(a.ts,t)}</span></div>`)}
+          </div>
+        </div>
+      </div>
+
+      <div class="card shadow-card p-5">
+        <div class="flex items-center justify-between mb-1"><h3 class="font-bold font-display text-brand-800 flex items-center gap-2"><${Icon} name="quests" size=18 /> ${t('dash.dailyQuests')}</h3><button onClick=${()=>go('quests')} class="text-xs font-bold text-brand-600">${t('common.all')} →</button></div>
+        <div class="text-xs text-slate-400 mb-3">${t('dash.completeToday',{n:dailyDone,total:dailies.length})}</div>
+        <div class="space-y-3">
+          ${dailies.map(q=>html`<div key=${q.id}>
+            <div class="flex items-center gap-2 text-sm mb-1"><span>${q.icon}</span><span class=${cls('flex-1 font-semibold',q.done&&'line-through text-slate-400')}>${t('quest.'+q.id)}</span>
+              ${q.done?html`<span class="text-green-600 font-bold text-xs">✓ +${q.xp}</span>`:html`<span class="text-xs text-slate-400">${q.progress}/${q.target}</span>`}</div>
+            <${Progress} pct=${q.progress/q.target*100} color=${q.done?'#1f8a52':ACCENT} h=6 /></div>`)}
+        </div>
+        <button onClick=${()=>go('quests')} class="mt-4 w-full bg-brand-50 text-brand-700 font-bold py-2.5 rounded-xl text-sm hover:bg-brand-100 transition">${t('dash.seeMore')}</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function LeadForm({initial,onSave,onClose}){
+  const {t}=useApp();
+  const [f,setF]=useState(initial||{name:'',phone:'',email:'',budget:'',interest:'',source:'Website',status:'new',notes:''});
+  const set=(k,v)=>setF(s=>({...s,[k]:v}));
+  return html`<div>
+    <${Field} label=${t('form.name')}><input class=${inputCls} value=${f.name} onInput=${e=>set('name',e.target.value)} placeholder=${t('form.namePh')} /></${Field}>
+    <div class="grid grid-cols-2 gap-3">
+      <${Field} label=${t('form.phone')}><input class=${inputCls} value=${f.phone} onInput=${e=>set('phone',e.target.value)} placeholder="+62 …" /></${Field}>
+      <${Field} label=${t('form.budget')}><input type="number" class=${inputCls} value=${f.budget} onInput=${e=>set('budget',e.target.value)} placeholder="1500000000" /></${Field}>
+    </div>
+    <${Field} label=${t('form.email')}><input class=${inputCls} value=${f.email} onInput=${e=>set('email',e.target.value)} placeholder="nama@mail.com" /></${Field}>
+    <${Field} label=${t('form.interest')}><input class=${inputCls} value=${f.interest} onInput=${e=>set('interest',e.target.value)} placeholder=${t('form.interestPh')} /></${Field}>
+    <div class="grid grid-cols-2 gap-3">
+      <${Field} label=${t('form.source')}><select class=${inputCls} value=${f.source} onChange=${e=>set('source',e.target.value)}>${SOURCES.map(s=>html`<option key=${s} value=${s}>${t('source.'+s)}</option>`)}</select></${Field}>
+      <${Field} label=${t('form.stage')}><select class=${inputCls} value=${f.status} onChange=${e=>set('status',e.target.value)}>${STAGES.map(s=>html`<option key=${s.id} value=${s.id}>${t('stage.'+s.id)}</option>`)}</select></${Field}>
+    </div>
+    <${Field} label=${t('form.notes')}><textarea class=${inputCls} rows="2" value=${f.notes} onInput=${e=>set('notes',e.target.value)}></textarea></${Field}>
+    <div class="flex gap-2 mt-2">
+      <button onClick=${onClose} class="flex-1 py-2.5 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200">${t('common.cancel')}</button>
+      <button onClick=${()=>{ if(!f.name.trim())return; onSave({...f,budget:+f.budget||0}); onClose(); }} class="flex-1 py-2.5 rounded-xl font-bold text-white bg-brand-700 hover:bg-brand-800">${t('form.saveLead')}</button>
+    </div>
+  </div>`;
+}
+function LeadDetail({lead,onClose}){
+  const {db,actions,t}=useApp(); const sm=stageMeta(lead.status);
+  const acts=db.activities.filter(a=>a.leadId===lead.id);
+  return html`<div>
+    <div class="flex items-center gap-3 mb-4"><${Avatar} emoji="🧑" size=52 /><div class="flex-1"><div class="font-extrabold text-lg text-brand-800">${lead.name}</div><${Badge} color=${sm.color}>${t('stage.'+lead.status)}</${Badge}></div></div>
+    <div class="grid grid-cols-2 gap-2 text-sm mb-4">
+      <div class="bg-slate-50 rounded-xl p-3"><div class="text-[11px] text-slate-400">${t('detail.budget')}</div><div class="font-bold">${fmtMoney(lead.budget)}</div></div>
+      <div class="bg-slate-50 rounded-xl p-3"><div class="text-[11px] text-slate-400">${t('detail.source')}</div><div class="font-bold">${t('source.'+lead.source)}</div></div>
+      <div class="bg-slate-50 rounded-xl p-3 col-span-2"><div class="text-[11px] text-slate-400">${t('detail.lookingFor')}</div><div class="font-bold">${lead.interest||'—'}</div></div>
+      <div class="bg-slate-50 rounded-xl p-3"><div class="text-[11px] text-slate-400">${t('detail.phone')}</div><div class="font-bold text-xs">${lead.phone||'—'}</div></div>
+      <div class="bg-slate-50 rounded-xl p-3"><div class="text-[11px] text-slate-400">${t('detail.lastContact')}</div><div class="font-bold text-xs">${timeAgo(lead.lastContact,t)}</div></div>
+    </div>
+    ${lead.notes && html`<div class="text-sm rounded-xl p-3 mb-4" style=${{background:ACCENT+'14',color:ACCENT_DK}}>📝 ${lead.notes}</div>`}
+    <div class="text-xs font-bold text-slate-400 mb-2">${t('detail.logActivity')}</div>
+    <div class="flex flex-wrap gap-2 mb-4">
+      ${Object.entries(ACT_TYPES).filter(([k])=>k!=='deal').map(([k,v])=>html`<button key=${k} onClick=${()=>actions.logActivity({type:k,leadId:lead.id})} class="px-3 py-1.5 rounded-lg text-sm font-bold border border-slate-200 hover:border-brand-400 hover:bg-brand-50 transition">${v.icon} ${t('act.'+k+'.label')}</button>`)}
+    </div>
+    <div class="text-xs font-bold text-slate-400 mb-2">${t('detail.moveStage')}</div>
+    <div class="flex flex-wrap gap-1.5 mb-4">
+      ${STAGES.map(s=>html`<button key=${s.id} onClick=${()=>actions.moveLead(lead.id,s.id)} class=${cls('px-2.5 py-1 rounded-lg text-xs font-bold transition',lead.status===s.id?'text-white':'bg-slate-100 text-slate-600 hover:bg-slate-200')} style=${lead.status===s.id?{background:s.color}:{}}>${t('stage.'+s.id)}</button>`)}
+    </div>
+    <div class="text-xs font-bold text-slate-400 mb-2">${t('detail.history',{n:acts.length})}</div>
+    <div class="space-y-2 max-h-40 overflow-auto">
+      ${acts.length===0 && html`<div class="text-sm text-slate-400">${t('detail.noActivity')}</div>`}
+      ${acts.map(a=>html`<div key=${a.id} class="flex items-center gap-2 text-sm"><span>${ACT_TYPES[a.type].icon}</span><span class="flex-1 text-slate-600">${mkDesc(t,a)}</span><span class="text-xs text-slate-400">${timeAgo(a.ts,t)}</span></div>`)}
+    </div>
+    <div class="flex gap-2 mt-5">
+      <button onClick=${()=>{ if(confirm(t('detail.deleteConfirm'))){actions.deleteLead(lead.id); onClose();} }} class="px-4 py-2.5 rounded-xl font-bold text-rose-600 bg-rose-50 hover:bg-rose-100">${t('common.delete')}</button>
+      <button onClick=${onClose} class="flex-1 py-2.5 rounded-xl font-bold text-white bg-brand-700 hover:bg-brand-800">${t('common.done')}</button>
+    </div>
+  </div>`;
+}
+function Leads(){
+  const {db,actions,t}=useApp();
+  const [q,setQ]=useState(''); const [filter,setFilter]=useState('all'); const [adding,setAdding]=useState(false); const [detail,setDetail]=useState(null);
+  const list=db.leads.filter(l=>{ if(filter!=='all'&&l.status!==filter) return false; if(q&&!(l.name+l.interest+l.source).toLowerCase().includes(q.toLowerCase())) return false; return true; });
+  const counts=useMemo(()=>{ const c={all:db.leads.length}; STAGES.forEach(s=>c[s.id]=db.leads.filter(l=>l.status===s.id).length); return c; },[db.leads]);
+  return html`<div class="space-y-4">
+    <div class="flex flex-col sm:flex-row gap-2 sm:items-center">
+      <div class="relative flex-1"><span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><${Icon} name="search" size=18 /></span>
+        <input value=${q} onInput=${e=>setQ(e.target.value)} placeholder=${t('leads.searchPh')} class=${inputCls+' pl-9'} /></div>
+      <button onClick=${()=>setAdding(true)} class="bg-brand-700 hover:bg-brand-800 text-white font-bold px-4 py-2.5 rounded-xl whitespace-nowrap transition flex items-center gap-1.5 justify-center"><${Icon} name="plus" size=18 /> ${t('leads.add')}</button>
+    </div>
+    <div class="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+      <button onClick=${()=>setFilter('all')} class=${cls('px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap',filter==='all'?'bg-brand-700 text-white':'bg-white text-slate-600 border border-slate-200')}>${t('common.all')} ${counts.all}</button>
+      ${STAGES.map(s=>html`<button key=${s.id} onClick=${()=>setFilter(s.id)} class=${cls('px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap',filter===s.id?'text-white':'bg-white text-slate-600 border border-slate-200')} style=${filter===s.id?{background:s.color}:{}}>${t('stage.'+s.id)} ${counts[s.id]}</button>`)}
+    </div>
+    <div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
+      ${list.map(l=>{ const sm=stageMeta(l.status); return html`<button key=${l.id} onClick=${()=>setDetail(l)} class="card shadow-card p-4 text-left hover:shadow-lift hover:-translate-y-0.5 transition anim-pop">
+        <div class="flex items-start justify-between"><div class="flex items-center gap-3 min-w-0"><${Avatar} emoji="🧑" size=42 /><div class="min-w-0"><div class="font-bold truncate text-brand-800">${l.name}</div><div class="text-xs text-slate-400 truncate">${l.interest||t('leads.noPref')}</div></div></div><${Badge} color=${sm.color}>${t('stage.'+l.status)}</${Badge}></div>
+        <div class="flex items-center justify-between mt-3 text-sm"><span class="font-extrabold text-brand-800">${fmtMoney(l.budget)}</span><span class="text-xs text-slate-400">${t('source.'+l.source)} · ${timeAgo(l.lastContact,t)}</span></div>
+      </button>`; })}
+      ${list.length===0 && html`<div class="col-span-full text-center text-slate-400 py-12">${t('leads.empty')} <button onClick=${()=>setAdding(true)} class="text-brand-600 font-bold">${t('leads.addOne')}</button></div>`}
+    </div>
+    <${Modal} open=${adding} onClose=${()=>setAdding(false)} title=${t('leads.addTitle')}><${LeadForm} onSave=${actions.addLead} onClose=${()=>setAdding(false)} /></${Modal}>
+    <${Modal} open=${!!detail} onClose=${()=>setDetail(null)} title=${t('leads.detailTitle')}>${detail && html`<${LeadDetail} lead=${db.leads.find(x=>x.id===detail.id)||detail} onClose=${()=>setDetail(null)} />`}</${Modal}>
+  </div>`;
+}
+
+function Pipeline(){
+  const {db,actions,t}=useApp(); const [dragId,setDragId]=useState(null);
+  const cols=STAGES.filter(s=>s.id!=='lost');
+  const valueOf=id=>db.leads.filter(l=>l.status===id).reduce((s,l)=>s+(+l.budget||0),0);
+  return html`<div>
+    <p class="text-sm text-slate-500 mb-3">${t('pipe.intro')}</p>
+    <div class="flex gap-3 overflow-x-auto pb-3 no-scrollbar">
+      ${cols.map(s=>{ const items=db.leads.filter(l=>l.status===s.id); return html`<div key=${s.id} onDragOver=${e=>e.preventDefault()} onDrop=${()=>{ if(dragId) actions.moveLead(dragId,s.id); setDragId(null); }} class="w-72 shrink-0 bg-[#ece8dd] rounded-2xl p-2.5">
+        <div class="flex items-center justify-between px-1.5 py-1 mb-1"><div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full" style=${{background:s.color}}></span><span class="font-bold text-sm text-brand-800">${t('stage.'+s.id)}</span><span class="text-xs text-slate-400">${items.length}</span></div><span class="text-[11px] font-bold text-slate-400">${fmtK(valueOf(s.id))}</span></div>
+        <div class="space-y-2 min-h-[60px]">
+          ${items.map(l=>html`<div key=${l.id} draggable=${true} onDragStart=${()=>setDragId(l.id)} onDragEnd=${()=>setDragId(null)} class="card p-3 cursor-grab active:cursor-grabbing anim-pop">
+            <div class="flex items-center justify-between"><span class="font-bold text-sm truncate text-brand-800">${l.name}</span><span class="text-xs font-bold text-slate-500">${fmtK(l.budget)}</span></div>
+            <div class="text-xs text-slate-400 truncate mt-0.5">${l.interest||'—'}</div>
+            <select value=${l.status} onChange=${e=>actions.moveLead(l.id,e.target.value)} class="mt-2 text-[11px] border border-slate-200 rounded-lg px-1.5 py-1 w-full font-semibold text-slate-600 bg-white">
+              ${STAGES.map(x=>html`<option key=${x.id} value=${x.id}>→ ${t('stage.'+x.id)}</option>`)}</select>
+          </div>`)}
+          ${items.length===0 && html`<div class="text-center text-xs text-slate-300 py-4">${t('pipe.dropHere')}</div>`}
+        </div>
+      </div>`; })}
+    </div>
+  </div>`;
+}
+
+function PropForm({onSave,onClose}){
+  const {t}=useApp();
+  const [f,setF]=useState({title:'',type:'Apartemen',price:'',loc:'',beds:1,baths:1,area:'',status:'available',img:'🏠'});
+  const set=(k,v)=>setF(s=>({...s,[k]:v})); const emojis=['🏠','🏡','🏙️','🏬','🏘️','🌆','🛏️','🏖️'];
+  return html`<div>
+    <${Field} label=${t('propform.title')}><input class=${inputCls} value=${f.title} onInput=${e=>set('title',e.target.value)} placeholder=${t('propform.titlePh')} /></${Field}>
+    <div class="grid grid-cols-2 gap-3">
+      <${Field} label=${t('propform.type')}><select class=${inputCls} value=${f.type} onChange=${e=>set('type',e.target.value)}>${PROP_TYPES.map(x=>html`<option key=${x}>${x}</option>`)}</select></${Field}>
+      <${Field} label=${t('propform.price')}><input type="number" class=${inputCls} value=${f.price} onInput=${e=>set('price',e.target.value)} /></${Field}>
+    </div>
+    <${Field} label=${t('propform.location')}><input class=${inputCls} value=${f.loc} onInput=${e=>set('loc',e.target.value)} placeholder=${t('propform.locationPh')} /></${Field}>
+    <div class="grid grid-cols-3 gap-3">
+      <${Field} label=${t('propform.beds')}><input type="number" class=${inputCls} value=${f.beds} onInput=${e=>set('beds',+e.target.value)} /></${Field}>
+      <${Field} label=${t('propform.baths')}><input type="number" class=${inputCls} value=${f.baths} onInput=${e=>set('baths',+e.target.value)} /></${Field}>
+      <${Field} label=${t('propform.area')}><input type="number" class=${inputCls} value=${f.area} onInput=${e=>set('area',+e.target.value)} /></${Field}>
+    </div>
+    <${Field} label=${t('propform.icon')}><div class="flex gap-2 flex-wrap mt-1">${emojis.map(e=>html`<button key=${e} onClick=${()=>set('img',e)} class=${cls('w-10 h-10 rounded-xl text-xl grid place-items-center border',f.img===e?'border-brand-500 bg-brand-50':'border-slate-200')}>${e}</button>`)}</div></${Field}>
+    <div class="flex gap-2 mt-3"><button onClick=${onClose} class="flex-1 py-2.5 rounded-xl font-bold text-slate-600 bg-slate-100">${t('common.cancel')}</button>
+      <button onClick=${()=>{ if(!f.title.trim())return; onSave({...f,price:+f.price||0}); onClose(); }} class="flex-1 py-2.5 rounded-xl font-bold text-white bg-brand-700 hover:bg-brand-800">${t('propform.add')}</button></div>
+  </div>`;
+}
+function Properties(){
+  const {db,actions,t}=useApp(); const [adding,setAdding]=useState(false);
+  const ps={available:{c:'#1f8a52',l:'prop.available'},pending:{c:'#c9731b',l:'prop.pending'},sold:{c:'#7a8493',l:'prop.sold'}};
+  return html`<div class="space-y-4">
+    <div class="flex items-center justify-between"><p class="text-sm text-slate-500">${t('prop.count',{n:db.properties.length})}</p>
+      <button onClick=${()=>setAdding(true)} class="bg-brand-700 hover:bg-brand-800 text-white font-bold px-4 py-2.5 rounded-xl transition flex items-center gap-1.5"><${Icon} name="plus" size=18 /> ${t('prop.add')}</button></div>
+    <div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
+      ${db.properties.map(p=>{ const st=ps[p.status]; return html`<div key=${p.id} class="card shadow-card overflow-hidden anim-pop">
+        <div class="h-28 grid place-items-center text-5xl relative bg-brand-50">${p.img}<span class="absolute top-2 right-2 text-[11px] font-bold px-2 py-0.5 rounded-md text-white" style=${{background:st.c}}>${t(st.l)}</span></div>
+        <div class="p-4">
+          <div class="font-bold truncate text-brand-800">${p.title}</div>
+          <div class="text-xs text-slate-400 truncate">📍 ${p.loc}</div>
+          <div class="text-lg font-extrabold font-display text-brand-700 mt-1">${fmtMoney(p.price)}</div>
+          <div class="flex items-center gap-3 text-xs text-slate-500 mt-2"><span class="flex items-center gap-1"><${Icon} name="bed" size=15 /> ${p.beds}</span><span class="flex items-center gap-1"><${Icon} name="bath" size=15 /> ${p.baths}</span><span class="flex items-center gap-1"><${Icon} name="area" size=15 /> ${p.area} m²</span></div>
+          <div class="flex gap-1.5 mt-3">${Object.entries(ps).map(([k,v])=>html`<button key=${k} onClick=${()=>actions.updateProperty(p.id,{status:k})} class=${cls('flex-1 text-[11px] font-bold py-1.5 rounded-lg transition',p.status===k?'text-white':'bg-slate-100 text-slate-500')} style=${p.status===k?{background:v.c}:{}}>${t(v.l)}</button>`)}</div>
+        </div></div>`; })}
+    </div>
+    <${Modal} open=${adding} onClose=${()=>setAdding(false)} title=${t('prop.addTitle')}><${PropForm} onSave=${actions.addProperty} onClose=${()=>setAdding(false)} /></${Modal}>
+  </div>`;
+}
+
+function Activities(){
+  const {db,t}=useApp(); const [filter,setFilter]=useState('all');
+  const list=db.activities.filter(a=>filter==='all'||a.type===filter);
+  const groups=useMemo(()=>{ const g={}; list.forEach(a=>{ const k=dayKey(a.ts); (g[k]=g[k]||[]).push(a); }); return Object.entries(g).sort((a,b)=>b[0].localeCompare(a[0])); },[list]);
+  const todayXp=db.activities.filter(a=>dayKey(a.ts)===dayKey()).reduce((s,a)=>s+a.xp,0);
+  const label=k=>{ const d=dayKey(),y=dayKey(now()-864e5); return k===d?t('acts.today'):k===y?t('acts.yesterday'):new Date(k).toLocaleDateString('id-ID',{weekday:'short',month:'short',day:'numeric'}); };
+  return html`<div class="space-y-4">
+    <div class="grid grid-cols-3 gap-3">
+      <${Stat} icon="bolt" label=${t('acts.total')} value=${db.activities.length} accent="#244c72" />
+      <${Stat} icon="activities" label=${t('acts.todayXp')} value=${todayXp} accent="#c9731b" />
+      <${Stat} icon="leaderboard" label=${t('acts.dealsClosed')} value=${db.activities.filter(a=>a.type==='deal').length} accent="#1f8a52" />
+    </div>
+    <div class="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+      <button onClick=${()=>setFilter('all')} class=${cls('px-3 py-1.5 rounded-lg text-xs font-bold',filter==='all'?'bg-brand-700 text-white':'bg-white border border-slate-200 text-slate-600')}>${t('common.all')}</button>
+      ${Object.entries(ACT_TYPES).map(([k,v])=>html`<button key=${k} onClick=${()=>setFilter(k)} class=${cls('px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap',filter===k?'text-white bg-brand-700':'bg-white border border-slate-200 text-slate-600')}>${v.icon} ${t('act.'+k+'.label')}</button>`)}
+    </div>
+    <div class="card shadow-card p-4 sm:p-5">
+      ${groups.length===0 && html`<div class="text-center text-slate-400 py-8">${t('acts.empty')}</div>`}
+      ${groups.map(([day,items])=>html`<div key=${day} class="mb-4 last:mb-0">
+        <div class="text-xs font-bold text-slate-400 mb-2">${label(day)}</div>
+        <div class="space-y-1">${items.map(a=>html`<div key=${a.id} class="flex items-center gap-3 py-2 border-b border-slate-50 last:border-0">
+          <span class="w-9 h-9 grid place-items-center rounded-xl shrink-0" style=${{background:ACT_TYPES[a.type].color+'15'}}>${ACT_TYPES[a.type].icon}</span>
+          <div class="flex-1 min-w-0"><div class="text-sm font-semibold truncate text-slate-800">${mkDesc(t,a)}</div><div class="text-xs text-slate-400">${new Date(a.ts).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})}</div></div>
+          <span class="text-xs font-bold text-brand-600 whitespace-nowrap">+${a.xp} XP</span></div>`)}</div>
+      </div>`)}
+    </div>
+  </div>`;
+}
+
+function QuestCard({q}){
+  const {t}=useApp(); const tc={daily:'#244c72',weekly:'#c9731b',monthly:'#6b4ea8'}[q.type];
+  return html`<div class=${cls('card shadow-card p-4 anim-pop',q.done&&'ring-2 ring-green-200')}>
+    <div class="flex items-start gap-3"><div class="w-11 h-11 rounded-xl grid place-items-center text-xl shrink-0" style=${{background:tc+'15'}}>${q.icon}</div>
+      <div class="flex-1 min-w-0"><div class="flex items-center gap-2"><span class=${cls('font-bold text-brand-800',q.done&&'text-slate-400 line-through')}>${t('quest.'+q.id)}</span>${q.done&&html`<span class="text-green-600">✓</span>`}</div>
+        <div class="flex items-center gap-2 mt-0.5"><${Badge}>+${q.xp} XP</${Badge}><${Badge} color=${ACCENT_DK} bg=${ACCENT+'18'}>🪙 ${q.pts}</${Badge}></div></div></div>
+    <div class="mt-3"><div class="flex justify-between text-xs font-semibold text-slate-400 mb-1"><span>${q.done?t('quests.completed'):t('quests.progress')}</span><span>${q.progress}/${q.target}</span></div>
+      <${Progress} pct=${q.progress/q.target*100} color=${q.done?'#1f8a52':tc} h=7 /></div>
+  </div>`;
+}
+function Quests(){
+  const {db,actions,t}=useApp();
+  const groups=[['daily','quests.daily','quests.dailySub'],['weekly','quests.weekly','quests.weeklySub'],['monthly','quests.monthly','quests.monthlySub']];
+  return html`<div class="space-y-6">
+    <div class="flex items-center justify-between gap-3"><p class="text-sm text-slate-500">${t('quests.intro')}</p>
+      <button onClick=${actions.resetDailies} class="text-xs font-bold text-brand-600 bg-brand-50 px-3 py-1.5 rounded-lg whitespace-nowrap">🔄 ${t('quests.resetDailies')}</button></div>
+    ${groups.map(([type,tk,sk])=>{ const qs=db.quests.filter(q=>q.type===type); const done=qs.filter(q=>q.done).length;
+      return html`<div key=${type}>
+        <div class="flex items-center justify-between mb-2"><h3 class="font-extrabold font-display text-brand-800">${t(tk)}</h3><span class="text-xs font-bold text-slate-400">${t('quests.doneOf',{n:done,total:qs.length})} · ${t(sk)}</span></div>
+        <div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">${qs.map(q=>html`<${QuestCard} key=${q.id} q=${q} />`)}</div></div>`; })}
+  </div>`;
+}
+
+function Leaderboard(){
+  const {db,t}=useApp();
+  const me={id:'me',name:db.profile.name+' '+t('lb.you'),avatar:db.profile.avatar,xp:db.profile.xp,me:true};
+  const board=[...RIVALS.map(r=>({...r})),me].sort((a,b)=>b.xp-a.xp);
+  const top3=board.slice(0,3); const order=[top3[1],top3[0],top3[2]].filter(Boolean); const heights=['h-20','h-28','h-16'];
+  return html`<div class="space-y-5">
+    <div class="card shadow-card p-5 hero text-white border-0">
+      <div class="text-center text-sm font-bold text-white/85 mb-4">🏆 ${t('lb.topAgents')}</div>
+      <div class="flex items-end justify-center gap-3">${order.map((p,i)=>{ const rank=board.indexOf(p)+1; const medal=['🥈','🥇','🥉'][i];
+        return html`<div key=${p.id} class="flex flex-col items-center" style=${{width:'30%'}}>
+          <div class="text-2xl">${medal}</div>
+          <div class=${cls('mb-1 rounded-full grid place-items-center bg-white/15',p.me&&'ring-2 ring-gold-300')} style=${{width:rank===1?64:52,height:rank===1?64:52,fontSize:rank===1?34:28}}>${p.avatar}</div>
+          <div class="text-xs font-bold text-center truncate w-full">${p.name.replace(' '+t('lb.you'),'')}</div>
+          <div class="text-[11px] text-white/80">${p.xp.toLocaleString('id-ID')} XP</div>
+          <div class=${cls('w-full rounded-t-lg mt-1',heights[i])} style=${{background:p.me?ACCENT:'rgba(255,255,255,.22)'}}></div></div>`; })}</div>
+    </div>
+    <div class="card shadow-card divide-y divide-slate-50">${board.map((p,i)=>{ const li=levelInfo(p.xp); const tier=tierFor(li.level);
+      return html`<div key=${p.id} class=${cls('flex items-center gap-3 p-3.5',p.me&&'bg-brand-50')}>
+        <div class=${cls('w-7 text-center font-extrabold',i<3?'text-gold-500':'text-slate-400')}>${i+1}</div>
+        <${Avatar} emoji=${p.avatar} size=42 ring=${p.me} />
+        <div class="flex-1 min-w-0"><div class="font-bold truncate text-brand-800">${p.name}</div><div class="text-xs" style=${{color:tier.color}}>${tier.emoji} ${t('tier.'+tier.name)} · Lv ${li.level}</div></div>
+        <div class="text-right"><div class="font-extrabold font-display text-brand-800">${p.xp.toLocaleString('id-ID')}</div><div class="text-[11px] text-slate-400">XP</div></div></div>`; })}</div>
+  </div>`;
+}
+
+function Achievements(){
+  const {db,t}=useApp(); const map=Object.fromEntries(db.achievements.map(a=>[a.id,a.unlocked]));
+  const unlocked=ACH_DEFS.filter(a=>map[a.id]).length;
+  return html`<div class="space-y-4">
+    <div class="card shadow-card p-5 flex items-center gap-4"><div class="text-4xl">🎖️</div><div class="flex-1"><div class="font-extrabold font-display text-lg text-brand-800">${t('achv.unlocked',{n:unlocked,total:ACH_DEFS.length})}</div><${Progress} pct=${unlocked/ACH_DEFS.length*100} color=${ACCENT} /></div></div>
+    <div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">${ACH_DEFS.map(a=>{ const on=map[a.id]; return html`<div key=${a.id} class=${cls('card shadow-card p-4 flex items-center gap-3 transition',on?'':'opacity-60 grayscale')}>
+      <div class=${cls('w-14 h-14 rounded-2xl grid place-items-center text-2xl shrink-0',on?'bg-gold-100':'bg-slate-100')}>${on?a.icon:'🔒'}</div>
+      <div class="flex-1 min-w-0"><div class="font-bold truncate text-brand-800">${t('achv.'+a.id+'.title')}</div><div class="text-xs text-slate-400">${t('achv.'+a.id+'.desc')}</div>
+        <div class="flex gap-1.5 mt-1">${a.xp>0&&html`<${Badge}>+${a.xp} XP</${Badge}>`}${a.pts>0&&html`<${Badge} color=${ACCENT_DK} bg=${ACCENT+'18'}>🪙 ${a.pts}</${Badge}>`}</div></div>
+      ${on&&html`<span class="text-green-500 font-bold">✓</span>`}</div>`; })}</div>
+  </div>`;
+}
+
+function Rewards(){
+  const {db,actions,t}=useApp(); const [tab,setTab]=useState('store');
+  return html`<div class="space-y-4">
+    <div class="card shadow-card p-5 flex items-center justify-between text-white border-0" style=${{background:'linear-gradient(110deg,'+ACCENT_DK+','+ACCENT+')'}}>
+      <div><div class="text-sm font-bold text-white/85">${t('rw.balance')}</div><div class="text-3xl font-extrabold font-display">🪙 ${db.profile.points}</div></div>
+      <div class="text-right text-sm text-white/85">${t('rw.lifetime')}<div class="text-xl font-bold">${db.profile.lifetimePoints}</div></div>
+    </div>
+    <div class="flex gap-2">${[['store','rw.store'],['titles','rw.titles'],['history','rw.history']].map(([k,l])=>html`<button key=${k} onClick=${()=>setTab(k)} class=${cls('px-4 py-2 rounded-xl text-sm font-bold transition',tab===k?'bg-brand-700 text-white':'bg-white border border-slate-200 text-slate-600')}>${t(l)}</button>`)}</div>
+    ${tab==='store' && html`<div class="grid sm:grid-cols-2 xl:grid-cols-4 gap-3">${REWARDS.map(r=>{ const can=db.profile.points>=r.cost; return html`<div key=${r.id} class="card shadow-card p-4 flex flex-col">
+      <div class="text-4xl mb-2">${r.icon}</div><div class="font-bold text-brand-800">${t('reward.'+r.id+'.title')}</div><div class="text-xs text-slate-400 flex-1">${t('reward.'+r.id+'.desc')}</div>
+      <button onClick=${()=>actions.redeemReward(r)} disabled=${!can} class=${cls('mt-3 py-2 rounded-xl font-bold text-sm transition',can?'bg-brand-700 text-white hover:bg-brand-800':'bg-slate-100 text-slate-400 cursor-not-allowed')}>${can?t('rw.redeem')+' · 🪙 '+r.cost:'🪙 '+r.cost}</button></div>`; })}</div>`}
+    ${tab==='titles' && html`<div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">${TITLES.map(tt=>{ const owned=db.profile.ownedTitles.includes(tt.id); const active=db.profile.titleId===tt.id; const can=db.profile.points>=tt.cost;
+      return html`<div key=${tt.id} class=${cls('card shadow-card p-4 flex items-center gap-3',active&&'ring-2 ring-brand-400')}>
+        <div class="text-3xl">${tt.icon}</div><div class="flex-1 min-w-0"><div class="font-bold text-brand-800">${t('title.'+tt.id+'.name')}</div><div class="text-xs text-slate-400">${t('title.'+tt.id+'.desc')}</div></div>
+        <button onClick=${()=>actions.buyTitle(tt)} disabled=${!owned&&!can} class=${cls('px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap',active?'bg-green-100 text-green-700':owned?'bg-brand-50 text-brand-700':can?'bg-brand-700 text-white':'bg-slate-100 text-slate-400')}>${active?'✓ '+t('rw.active'):owned?t('rw.equip'):'🪙 '+tt.cost}</button></div>`; })}</div>`}
+    ${tab==='history' && html`<div class="card shadow-card p-4">${db.redeemed.length===0 && html`<div class="text-center text-slate-400 py-8">${t('rw.emptyHistory')}</div>`}
+      ${db.redeemed.map(r=>html`<div key=${r.id} class="flex items-center gap-3 py-3 border-b border-slate-50 last:border-0"><span class="text-2xl">${r.icon}</span><div class="flex-1"><div class="font-bold text-sm text-brand-800">${t('reward.'+(r.rid||'')+'.title')}</div><div class="text-xs text-slate-400">${timeAgo(r.ts,t)}</div></div><span class="text-sm font-bold text-rose-500">-🪙 ${r.cost}</span></div>`)}</div>`}
+  </div>`;
+}
+
+function Profile(){
+  const {db,stats,actions,t,lang,setLang}=useApp();
+  const li=levelInfo(db.profile.xp); const tier=tierFor(li.level); const [edit,setEdit]=useState(false);
+  const avatars=['😎','🙂','😀','🧑','👨','👩','🦊','🐱','🚀','⭐'];
+  const wonValue=db.leads.filter(l=>l.status==='won').reduce((s,l)=>s+(+l.budget||0),0);
+  return html`<div class="space-y-4">
+    <div class="card shadow-card p-6 text-center relative overflow-hidden">
+      <div class="absolute inset-x-0 top-0 h-20 hero"></div>
+      <div class="relative">
+        <div class="mx-auto w-24 h-24 rounded-full bg-white grid place-items-center text-5xl shadow-card ring-4 ring-white">${db.profile.avatar}</div>
+        <div class="font-extrabold font-display text-xl mt-2 text-brand-800">${db.profile.name}</div>
+        <div class="text-sm font-bold text-brand-600">${TITLES.find(x=>x.id===db.profile.titleId)?.icon||''} ${t('title.'+db.profile.titleId+'.name')}</div>
+        <div class="inline-flex items-center gap-2 mt-2 px-3 py-1 rounded-full text-sm font-bold" style=${{background:tier.bg,color:tier.color}}>${tier.emoji} ${t('tier.'+tier.name)} · Level ${li.level}</div>
+        <div class="mt-4 max-w-xs mx-auto"><div class="flex justify-between text-xs font-semibold text-slate-400 mb-1"><span>${li.into} XP</span><span>${t('pf.toLevel',{need:li.need,lvl:li.level+1})}</span></div><${Progress} pct=${li.pct} color=${ACCENT} /></div>
+        <button onClick=${()=>setEdit(true)} class="mt-4 text-xs font-bold text-brand-600 bg-brand-50 px-4 py-2 rounded-xl">✏️ ${t('pf.editProfile')}</button>
+      </div>
+    </div>
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <${Stat} icon="bolt" label=${t('pf.totalXp')} value=${db.profile.xp.toLocaleString('id-ID')} accent="#244c72" />
+      <${Stat} icon="leaderboard" label=${t('pf.dealsWon')} value=${stats.dealsWon} accent="#1f8a52" />
+      <${Stat} icon="money" label=${t('pf.closedValue')} value=${fmtK(wonValue)} accent="#c9731b" />
+      <${Stat} icon="achievements" label=${t('pf.badges')} value=${db.achievements.filter(a=>a.unlocked).length} accent="#6b4ea8" />
+    </div>
+    <div class="card shadow-card p-5"><h3 class="font-bold font-display mb-3 text-brand-800">🏷️ ${t('pf.equippedTitle')}</h3>
+      <div class="flex gap-2 flex-wrap">${db.profile.ownedTitles.map(id=>{ const tt=TITLES.find(x=>x.id===id); if(!tt)return null; const active=db.profile.titleId===id;
+        return html`<button key=${id} onClick=${()=>actions.setTitle(id)} class=${cls('px-3 py-2 rounded-xl text-sm font-bold border transition',active?'border-brand-500 bg-brand-50 text-brand-700':'border-slate-200 text-slate-600')}>${tt.icon} ${t('title.'+id+'.name')}</button>`; })}</div>
+    </div>
+    <div class="card shadow-card p-5"><h3 class="font-bold font-display mb-3 text-brand-800">🌐 ${t('pf.language')}</h3><${LangToggle} /></div>
+    <div class="card shadow-card p-5"><h3 class="font-bold font-display mb-1 text-brand-800">⚙️ ${t('pf.demoControls')}</h3>
+      <p class="text-xs text-slate-400 mb-3">${t('pf.demoNote')}</p>
+      <button onClick=${()=>{ if(confirm(t('pf.resetConfirm'))) actions.resetAll(); }} class="text-sm font-bold text-rose-600 bg-rose-50 px-4 py-2.5 rounded-xl hover:bg-rose-100">♻️ ${t('pf.resetDemo')}</button></div>
+    <${Modal} open=${edit} onClose=${()=>setEdit(false)} title=${t('pf.editProfile')}>
+      <${Field} label=${t('pf.displayName')}><input class=${inputCls} value=${db.profile.name} onInput=${e=>actions.updateProfile({name:e.target.value})} /></${Field}>
+      <div class="text-xs font-semibold text-slate-500 mb-1">${t('pf.avatar')}</div>
+      <div class="flex flex-wrap gap-2">${avatars.map(a=>html`<button key=${a} onClick=${()=>actions.updateProfile({avatar:a})} class=${cls('w-12 h-12 rounded-xl text-2xl grid place-items-center border',db.profile.avatar===a?'border-brand-500 bg-brand-50':'border-slate-200')}>${a}</button>`)}</div>
+      <button onClick=${()=>setEdit(false)} class="mt-4 w-full py-2.5 rounded-xl font-bold text-white bg-brand-700">${t('common.done')}</button>
+    </${Modal}>
+  </div>`;
+}
+
+/* ============ root ============ */
+const PAGES={dashboard:Dashboard,leads:Leads,pipeline:Pipeline,properties:Properties,activities:Activities,quests:Quests,leaderboard:Leaderboard,achievements:Achievements,rewards:Rewards,profile:Profile};
+function Shell(){
+  const {t}=useApp();
+  const [route,setRoute]=useState('dashboard'); const [moreOpen,setMoreOpen]=useState(false);
+  const go=useCallback(id=>{ setRoute(id); setMoreOpen(false); window.scrollTo({top:0}); },[]);
+  const Page=PAGES[route]||Dashboard; const title=t('nav.'+route);
+  return html`<div class="flex min-h-screen">
+    <${Sidebar} route=${route} go=${go} />
+    <div class="flex-1 min-w-0 flex flex-col">
+      <${TopBar} title=${title} go=${go} />
+      <main class="flex-1 px-4 sm:px-6 py-4 sm:py-6 pb-24 lg:pb-8 max-w-7xl w-full mx-auto">
+        <h1 class="lg:hidden text-2xl font-extrabold font-display mb-4 text-brand-800">${title}</h1>
+        <div key=${route} class="anim-up"><${Page} go=${go} /></div>
+      </main>
+    </div>
+    <${MobileNav} route=${route} go=${go} openMore=${()=>setMoreOpen(true)} />
+    ${moreOpen && html`<div class="lg:hidden fixed inset-0 z-50 bg-brand-900/40 backdrop-blur-sm flex items-end" onClick=${()=>setMoreOpen(false)}>
+      <div class="bg-white rounded-t-2xl w-full p-4 anim-up" onClick=${e=>e.stopPropagation()}>
+        <div class="w-10 h-1 bg-slate-200 rounded-full mx-auto mb-3"></div>
+        <div class="grid grid-cols-4 gap-3">${NAV.map(id=>html`<button key=${id} onClick=${()=>go(id)} class=${cls('flex flex-col items-center gap-1 p-3 rounded-xl text-xs font-bold',route===id?'bg-brand-50 text-brand-700':'text-slate-600')}>
+          <${Icon} name=${id} size=22 /> ${t('nav.'+id)}</button>`)}</div>
+        <div class="mt-4 flex justify-center"><${LangToggle} /></div>
+      </div>
+    </div>`}
+  </div>`;
+}
+ReactDOM.createRoot(document.getElementById('root')).render(html`<${AppProvider}><${Shell} /></${AppProvider}>`);
+</script>
+</body>
+</html>
